@@ -7,8 +7,8 @@ import sys
 import utils
 
 
-@utils.app.function(gpu=utils.gpu, image=utils.image)
-def run_reducer(config: dict) -> float:
+@utils.app.function(gpu = utils.gpu, image = utils.image)
+def run_reducer(config: utils.Config) -> float:
     sys.path.append("/root/src")
 
     from fnn import FNN

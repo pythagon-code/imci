@@ -9,6 +9,8 @@ class Config:
     num_layers: int = 5
     embed_dim: int = 128
     num_heads: int = 8
+    module_state: dict | None = None
+    transformer_state: dict | None = None
 
 app = modal.App("imci")
 gpu = "A100"
@@ -18,8 +20,12 @@ image = (modal.Image
          .add_local_dir(Path(__file__).parent, remote_path="/root/src"))
 
 
-def get_tensor_queue(worker_id: int):
-    return modal.Queue.from_name(f"tensor-queue-{worker_id}", create_if_missing=True)
+def get_tensor_queues(num_workers: int):
+    queues = []
+    for worker_id in range(num_workers):
+        queues.append(
+            modal.Queue.from_name(f"tensor-queue-{worker_id}", create_if_missing=True))
+    return queues
 
 
 def get_transformer_queue(worker_id: int):

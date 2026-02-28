@@ -6,6 +6,7 @@ import sys
 from typing import Generator
 import utils
 
+
 def config_range(upper: int) -> Generator[tuple[int, utils.Config]]:
     config = utils.Config()
     for i in range(upper):
@@ -13,6 +14,6 @@ def config_range(upper: int) -> Generator[tuple[int, utils.Config]]:
 
 
 @utils.app.local_entrypoint()
-def main():
+def main() -> None:
     for x in run_module.starmap(config_range(100)):
-        print("", x)
+        print(x)
