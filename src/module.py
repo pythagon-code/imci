@@ -25,7 +25,7 @@ def run_module(config: utils.Config) -> dict:
         num_layers = config.num_layers,
         output = True,
     ).cuda()
-    opt = optim.Adam(module.parameters(), lr=0.001)
+    opt = optim.Adam(module.parameters(), lr = 0.001)
     module_t = FNN(
         hidden_size = config.hidden_size,
         num_layers = config.num_layers,
@@ -37,7 +37,7 @@ def run_module(config: utils.Config) -> dict:
 
     trans = Transformer(
         hidden_size = config.hidden_size,
-        num_layers = config.transformer_num_layers,
+        num_layers = config.num_embed_layers,
         embed_dim = config.embed_dim,
         num_heads = config.num_heads,
     ).cuda()
@@ -53,31 +53,38 @@ def run_module(config: utils.Config) -> dict:
 
     while True:
         opt.zero_grad(set_to_none=True)
+
         my_input = my_queue.get()
         if my_input is None:
             break
         my_input = my_input.cuda()
         truth = my_queue.get().cuda()
+        print("(", my_input.size(), truth.size(), ")")
         my_output = module(my_input)
         with torch.no_grad():
             my_output_t = module_t(my_input)
         for q in queues:
             if q != my_queue:
-                q.put(my_output_t.cpu())
-        transformer_inputs = [my_output.cpu()]
+                q.put(my_output_t)
+        trans_inputs = [my_output]
         for _ in range(config.num_workers - 2):
-            transformer_inputs.append(my_queue.get())
+            trans_inputs.append(my_queue.get())
 
-        transformer_inputs = torch.stack(transformer_inputs).cuda()
-        transformer_output = trans(transformer_inputs)
+        trans_inputs = torch.stack(trans_inputs).cuda()
+        trans_output = trans(trans_inputs)
 
-        loss = mse_loss(transformer_output, truth)
+        loss = mse_loss(trans_output, truth)
         loss.backward()
 
         opt.step()
 
-        trans_state_dict = my_queue.get()
-        trans.load_state_dict(trans_state_dict)
         utils.polyak_update(module_t.state_dict(), module.state_dict(), 0.01)
+
+        for param in trans.state_dict().values():
+            new_value = my_queue.get()
+            param.copy_(new_value)
+        
+        assert my_queue.get() == "End of iteration"
+        utils.get_ack_queue().put("ack")
 
     return cpu_state_dict(module_t.state_dict())

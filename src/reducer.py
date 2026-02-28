@@ -19,14 +19,14 @@ def run_reducer(config: utils.Config) -> dict:
 
     trans = Transformer(
         hidden_size = config.hidden_size,
-        num_layers = config.transformer_num_layers,
+        num_layers = config.num_embed_layers,
         embed_dim = config.embed_dim,
         num_heads = config.num_heads,
     ).cuda()
     opt = optim.Adam(trans.parameters(), lr=0.001)
     trans_t = Transformer(
         hidden_size = config.hidden_size,
-        num_layers = config.transformer_num_layers,
+        num_layers =config.num_embed_layers,
         embed_dim = config.embed_dim,
         num_heads = config.num_heads,
     ).cuda()
@@ -39,23 +39,30 @@ def run_reducer(config: utils.Config) -> dict:
 
     queues = utils.get_worker_queues(config.num_workers)
     my_queue = queues[config.worker_id]
+    output_queue = utils.get_output_queue()
 
     while True:
-        truth = my_queue.get()
+        truth = my_queue.get(block = True, timeout = 1000)
         if truth is None:
             break
         truth = truth.cuda()
         trans_inputs = []
         for _ in range(config.num_workers - 1):
-            trans_inputs.append(my_queue.get())
+            trans_inputs.append(my_queue.get(block = True, timeout = 1000))
         trans_inputs = torch.stack(trans_inputs).cuda()
-        trans_output = trans(trans_inputs)
-        loss = mse_loss(trans_output, truth)
+        output = trans(trans_inputs)
+        loss = mse_loss(output, truth)
         loss.backward()
 
         utils.polyak_update(trans_t.state_dict(), trans.state_dict(), 0.01)
         for q in queues:
             if q != my_queue:
-                q.put(trans_t.state_dict())
+                for param in trans_t.state_dict().values():
+                    q.put(param)
+                q.put("End of iteration")
+        
+        output_queue.put((output.cpu(), loss.item()))
+        utils.get_ack_queue().put("ack")
+        
 
     return utils.cpu_state_dict(trans_t.state_dict())
