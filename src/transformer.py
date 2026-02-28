@@ -4,7 +4,13 @@ from torch import Tensor, nn
 
 
 class Transformer(nn.Module):
-    def __init__(self, hidden_size: int, num_layers: int, embed_dim: int, num_heads: int) -> None:
+    def __init__(
+        self,
+        hidden_size: int,
+        num_layers: int,
+        embed_dim: int,
+        num_heads: int,
+    ) -> None:
         super().__init__()
         self.q_net = FNN(hidden_size, num_layers, output=True)
         self.k_net = FNN(hidden_size, num_layers, output=True)

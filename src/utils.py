@@ -1,5 +1,14 @@
+from dataclasses import dataclass
 from pathlib import Path
 import modal
+
+@dataclass
+class Config:
+    num_modules: int = 100
+    hidden_size: int = 100
+    num_layers: int = 5
+    embed_dim: int = 128
+    num_heads: int = 8
 
 app = modal.App("imci")
 gpu = "A100"
