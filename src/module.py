@@ -1,4 +1,7 @@
 import sys
+
+from src.utils import cpu_state_dict
+
 sys.path.append("/root/src")
 
 import modal
@@ -21,20 +24,23 @@ def run_module(config: utils.Config) -> dict:
         hidden_size = config.hidden_size,
         num_layers = config.num_layers,
         output = True,
-    )
+    ).cuda()
     opt = optim.Adam(module.parameters(), lr=0.001)
     module_t = FNN(
         hidden_size = config.hidden_size,
         num_layers = config.num_layers,
         output = True,
-    )
+    ).cuda()
+    module_t.load_state_dict(module.state_dict())
+    for param in module_t.parameters():
+        param.requires_grad_(False)
 
     trans = Transformer(
         hidden_size = config.hidden_size,
         num_layers = config.transformer_num_layers,
         embed_dim = config.embed_dim,
         num_heads = config.num_heads,
-    )
+    ).cuda()
     for param in trans.parameters():
         param.requires_grad = False
 
@@ -50,16 +56,19 @@ def run_module(config: utils.Config) -> dict:
         my_input = my_queue.get()
         if my_input is None:
             break
-        truth = my_queue.get()
+        my_input = my_input.cuda()
+        truth = my_queue.get().cuda()
         my_output = module(my_input)
+        with torch.no_grad():
+            my_output_t = module_t(my_input)
         for q in queues:
             if q != my_queue:
-                q.put(my_output.cpu().detach())
-        transformer_inputs = [my_output]
+                q.put(my_output_t.cpu())
+        transformer_inputs = [my_output.cpu()]
         for _ in range(config.num_workers - 2):
             transformer_inputs.append(my_queue.get())
 
-        transformer_inputs = torch.stack(transformer_inputs)
+        transformer_inputs = torch.stack(transformer_inputs).cuda()
         transformer_output = trans(transformer_inputs)
 
         loss = mse_loss(transformer_output, truth)
@@ -69,5 +78,6 @@ def run_module(config: utils.Config) -> dict:
 
         trans_state_dict = my_queue.get()
         trans.load_state_dict(trans_state_dict)
+        utils.polyak_update(module_t.state_dict(), module.state_dict(), 0.01)
 
-    return module.state_dict()
+    return cpu_state_dict(module_t.state_dict())

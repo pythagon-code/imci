@@ -30,6 +30,14 @@ def get_worker_queues(num_workers: int) -> list[modal.Queue]:
     return queues
 
 
-def polyak_update(target: dict, source: dict, tau: float) -> None:
-    for k, v in source.items():
-        target[k] = target[k] * (1 - tau) + v * tau
+def polyak_update(target: dict, main: dict, tau: float) -> None:
+    for target_param, main_param in zip(target.values(), main.values()):
+        target_param.copy_(main_param * tau + target_param * (1 - tau))
+
+
+def cpu_state_dict(state_dict: dict) -> dict:
+    return {k: v.cpu() for k, v in state_dict.items()}
+
+
+def cuda_state_dict(state_dict: dict) -> dict:
+    return {k: v.cuda() for k, v in state_dict.items()}

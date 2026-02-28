@@ -22,5 +22,9 @@ def main() -> None:
     )
     futures = [run_module.spawn(cfg) for cfg in configs] + [run_reducer.spawn(reducer_config)]
 
+    queues = utils.get_worker_queues(num_workers)
+    for q in queues:
+        q.put(None)
+
     for f in futures:
         print(f.get())
