@@ -7,13 +7,20 @@ from typing import Generator
 import utils
 
 
-def config_range(upper: int) -> Generator[tuple[int, utils.Config]]:
-    config = utils.Config()
-    for i in range(upper):
-        yield i, config
-
-
 @utils.app.local_entrypoint()
 def main() -> None:
-    for x in run_module.starmap(config_range(100)):
-        print(x)
+    num_workers = 10
+
+    configs = [utils.Config(
+        num_workers = num_workers,
+        worker_id = i,
+    ) for i in range(num_workers - 1)]
+
+    reducer_config = utils.Config(
+        num_workers = num_workers,
+        worker_id = num_workers - 1,
+    )
+    futures = [run_module.spawn(cfg) for cfg in configs] + [run_reducer.spawn(reducer_config)]
+
+    for f in futures:
+        print(f.get())
