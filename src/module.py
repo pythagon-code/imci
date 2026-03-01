@@ -54,11 +54,13 @@ def run_module(config: utils.Config) -> dict:
     while True:
         opt.zero_grad(set_to_none=True)
 
-        my_input = my_queue.get()
-        if my_input is None:
+        msg = my_queue.get()
+        if msg is None:
             break
+        my_input, truth = msg
         my_input = my_input.cuda()
-        truth = my_queue.get().cuda()
+        truth = truth.cuda()
+        assert truth.shape[-1] == 1
         print("(", my_input.size(), truth.size(), ")")
         my_output = module(my_input)
         with torch.no_grad():
@@ -78,13 +80,12 @@ def run_module(config: utils.Config) -> dict:
 
         opt.step()
 
-        utils.polyak_update(module_t.state_dict(), module.state_dict(), 0.01)
+        utils.polyak_update(module_t.state_dict(), module.state_dict(), 0.05)
 
         for param in trans.state_dict().values():
             new_value = my_queue.get()
             param.copy_(new_value)
         
         assert my_queue.get() == "End of iteration"
-        utils.get_ack_queue().put("ack")
 
     return cpu_state_dict(module_t.state_dict())

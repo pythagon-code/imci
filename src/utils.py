@@ -4,12 +4,12 @@ import modal
 
 @dataclass
 class Config:
-    num_workers: int = 5
+    num_workers: int = 2
     worker_id: int = 0
     hidden_size: int = 128
     num_layers: int = 12
     embed_dim: int = 128
-    num_heads: int = 8
+    num_heads: int = 4
     num_embed_layers: int = 4
     module_state: dict | None = None
     transformer_state: dict | None = None
@@ -32,10 +32,6 @@ def get_worker_queues(num_workers: int) -> list[modal.Queue]:
 
 def get_output_queue() -> list[modal.Queue]:
     return modal.Queue.from_name("output-queue", create_if_missing = True)
-
-
-def get_ack_queue() -> modal.Queue:
-    return modal.Queue.from_name("ack-queue", create_if_missing = True)
 
 
 def polyak_update(target: dict, main: dict, tau: float) -> None:

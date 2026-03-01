@@ -6,7 +6,7 @@ from pathlib import Path
 import utils
 
 
-@utils.app.function(gpu = utils.gpu, image = utils.image)
+@utils.app.function(gpu = utils.gpu, image = utils.image, timeout = 100_000)
 def run_reducer(config: utils.Config) -> dict:
     sys.path.append("/root/src")
 
@@ -26,7 +26,7 @@ def run_reducer(config: utils.Config) -> dict:
     opt = optim.Adam(trans.parameters(), lr=0.001)
     trans_t = Transformer(
         hidden_size = config.hidden_size,
-        num_layers =config.num_embed_layers,
+        num_layers = config.num_embed_layers,
         embed_dim = config.embed_dim,
         num_heads = config.num_heads,
     ).cuda()
@@ -46,9 +46,10 @@ def run_reducer(config: utils.Config) -> dict:
         if truth is None:
             break
         truth = truth.cuda()
+        assert truth.shape[-1] == 1
         trans_inputs = []
         for _ in range(config.num_workers - 1):
-            trans_inputs.append(my_queue.get(block = True, timeout = 1000))
+            trans_inputs.append(my_queue.get())
         trans_inputs = torch.stack(trans_inputs).cuda()
         output = trans(trans_inputs)
         loss = mse_loss(output, truth)
@@ -62,7 +63,5 @@ def run_reducer(config: utils.Config) -> dict:
                 q.put("End of iteration")
         
         output_queue.put((output.cpu(), loss.item()))
-        utils.get_ack_queue().put("ack")
-        
 
     return utils.cpu_state_dict(trans_t.state_dict())
